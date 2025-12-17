@@ -120,10 +120,6 @@ export const StroopTest: React.FC<TestModuleProps> = ({ onComplete }) => {
     }
     const textIdx = Math.floor(Math.random() * 3);
     const colorIdx = Math.floor(Math.random() * 3);
-    // 50% chance of matching logic for "Is the text matching the color name?"
-    // Actually standard Stroop: Does the Meaning match the Ink?
-    // Let's do: Click MATCH if text matches color, else ignore. Or easier: Just match text meaning.
-    // Let's do: "文字描述的颜色与实际字体颜色是否一致？"
     
     setCurrent({
       text: colors[textIdx].name,
@@ -168,12 +164,12 @@ export const GridReaction: React.FC<TestModuleProps> = ({ onComplete }) => {
         }
         return t - 1;
       });
-      // Add target periodically
-      if (Math.random() > 0.5) {
+      // Add target periodically - UPDATED: Speed increased (350ms instead of 800ms)
+      if (Math.random() > 0.4) {
          const newTarget = Math.floor(Math.random() * 16);
          setTargets(prev => prev.includes(newTarget) ? prev : [...prev, newTarget]);
       }
-    }, 800);
+    }, 350); 
     return () => clearInterval(timer);
   }, [score, onComplete]);
 
@@ -192,7 +188,7 @@ export const GridReaction: React.FC<TestModuleProps> = ({ onComplete }) => {
           <div 
             key={i} 
             onMouseDown={() => hit(i)}
-            className={`w-20 h-20 rounded cursor-pointer transition-all duration-75 ${targets.includes(i) ? 'bg-cyan-400 scale-90' : 'bg-slate-700'}`}
+            className={`w-20 h-20 rounded cursor-pointer transition-all duration-75 ${targets.includes(i) ? 'bg-cyan-400 scale-90 shadow-[0_0_15px_rgba(34,211,238,0.8)]' : 'bg-slate-700'}`}
           />
         ))}
       </div>
@@ -202,32 +198,40 @@ export const GridReaction: React.FC<TestModuleProps> = ({ onComplete }) => {
 
 // --- Level 3: Vision ---
 export const StaticVision: React.FC<TestModuleProps> = ({ onComplete }) => {
-  // Find the slightly different color
   const [level, setLevel] = useState(1);
   const maxLevels = 5;
+  const [targetIndex, setTargetIndex] = useState(() => Math.floor(Math.random() * 25));
+  const [baseHue, setBaseHue] = useState(() => Math.floor(Math.random() * 360));
 
-  const handleChoice = (isCorrect: boolean) => {
-    if (isCorrect) {
-      if (level < maxLevels) setLevel(l => l + 1);
-      else onComplete(100, "S级", "评级");
+  const handleChoice = (index: number) => {
+    if (index === targetIndex) {
+      if (level < maxLevels) {
+        setLevel(l => l + 1);
+        setTargetIndex(Math.floor(Math.random() * 25));
+        setBaseHue(Math.floor(Math.random() * 360));
+      } else {
+        onComplete(100, "S级", "评级");
+      }
     }
-    // No penalty logic for brevity
   };
 
-  const opacity = 1 - (level * 0.1); 
+  const opacity = 0.5 + (level * 0.08);
 
   return (
     <div className="flex flex-col items-center">
-      <h3 className="mb-4">找出颜色不同的方块 (Level {level})</h3>
-      <div className="grid grid-cols-5 gap-2">
+      <h3 className="mb-4 text-cyan-400 font-bold">找出颜色不同的方块 (Level {level})</h3>
+      <div className="grid grid-cols-5 gap-3 p-4 bg-slate-800 rounded-xl">
         {Array.from({ length: 25 }).map((_, i) => {
-            const isTarget = i === 12; // Static for simplicity in demo
+            const isTarget = i === targetIndex;
             return (
                 <div 
                     key={i} 
-                    onClick={() => handleChoice(isTarget)}
-                    className="w-12 h-12 bg-purple-500 rounded cursor-pointer"
-                    style={{ opacity: isTarget ? opacity : 1 }}
+                    onClick={() => handleChoice(i)}
+                    className="w-16 h-16 rounded-lg cursor-pointer transition-transform duration-100 active:scale-95 hover:shadow-[0_0_10px_rgba(255,255,255,0.1)] border border-white/5"
+                    style={{ 
+                        backgroundColor: `hsl(${baseHue}, 70%, 60%)`,
+                        opacity: isTarget ? opacity : 1 
+                    }}
                 />
             )
         })}
@@ -307,7 +311,6 @@ export const FlashMemory: React.FC<TestModuleProps> = ({ onComplete }) => {
 
 // --- Level 4: Focus ---
 export const FocusTrack: React.FC<TestModuleProps> = ({ onComplete }) => {
-  // Simplified: Keep clicking the button that moves slightly
   const [clicks, setClicks] = useState(0);
   
   const handleClick = () => {
@@ -449,7 +452,6 @@ export const TrackingTest: React.FC<TestModuleProps> = ({ onComplete }) => {
 };
 
 export const ReflexLight: React.FC<TestModuleProps> = ({ onComplete }) => {
-    // Click when lit
     const [lit, setLit] = useState(false);
     useEffect(() => { setTimeout(() => setLit(true), 1000); }, []);
     return (
@@ -465,83 +467,248 @@ export const ReflexLight: React.FC<TestModuleProps> = ({ onComplete }) => {
 
 // --- Level 6: Memory ---
 export const SequenceMemory: React.FC<TestModuleProps> = ({ onComplete }) => {
-    const seq = "839105";
-    const [show, setShow] = useState(true);
-    const [val, setVal] = useState("");
+    const [round, setRound] = useState(1);
+    const [correctCount, setCorrectCount] = useState(0);
+    const [seq, setSeq] = useState("");
+    const [phase, setPhase] = useState<'memorize' | 'input'>('memorize');
+    const [inputVal, setInputVal] = useState("");
 
+    // Generate random 6-digit sequence
+    const generateSeq = () => {
+        return Math.floor(100000 + Math.random() * 900000).toString();
+    };
+
+    // Initialize round
     useEffect(() => {
-        setTimeout(() => setShow(false), 2000);
-    }, []);
+        setSeq(generateSeq());
+        setPhase('memorize');
+        setInputVal("");
+        
+        const timer = setTimeout(() => {
+            setPhase('input');
+        }, 2000); // 2 seconds to memorize
+
+        return () => clearTimeout(timer);
+    }, [round]);
 
     const handleSubmit = () => {
-        if (val === seq) onComplete(100, "全对", "精度");
-        else onComplete(0, "错误", "精度");
-    }
+        const isCorrect = inputVal === seq;
+        const nextCorrectCount = isCorrect ? correctCount + 1 : correctCount;
+        setCorrectCount(nextCorrectCount);
+
+        if (round < 3) {
+            setRound(r => r + 1);
+        } else {
+            // Finished 3 rounds
+            const finalScore = Math.round((nextCorrectCount / 3) * 100);
+            onComplete(finalScore, `${nextCorrectCount}/3`, "正确轮次");
+        }
+    };
 
     return (
-        <div className="flex flex-col items-center gap-4">
-            {show ? <div className="text-6xl tracking-widest font-mono">{seq}</div> : (
-                <>
+        <div className="flex flex-col items-center gap-6 w-full max-w-md mx-auto">
+            <h3 className="text-xl text-cyan-400 mb-2">Round {round} / 3</h3>
+            
+            {phase === 'memorize' ? (
+                 <div className="h-32 flex items-center justify-center">
+                    <div className="text-6xl tracking-widest font-mono font-bold animate-pulse text-white">{seq}</div>
+                 </div>
+            ) : (
+                <div className="flex flex-col items-center gap-4 w-full animate-in fade-in slide-in-from-bottom-4">
                     <input 
                       type="text" 
-                      value={val} 
-                      onChange={e => setVal(e.target.value)} 
-                      className="bg-transparent border-b-2 border-cyan-500 text-3xl text-center outline-none"
-                      placeholder="输入数字"
+                      value={inputVal} 
+                      onChange={e => setInputVal(e.target.value)} 
+                      maxLength={6}
+                      className="w-full bg-slate-800/50 border-b-4 border-cyan-500 text-4xl text-center py-4 outline-none tracking-[0.5em] text-white"
+                      placeholder="______"
+                      autoFocus
                     />
-                    <button onClick={handleSubmit} className="px-6 py-2 bg-cyan-600 rounded">确认</button>
-                </>
+                    <button onClick={handleSubmit} className="px-8 py-3 bg-cyan-600 hover:bg-cyan-500 rounded font-bold text-lg w-full transition-colors">
+                        确认 (Submit)
+                    </button>
+                </div>
             )}
         </div>
     );
 };
 
 export const PatternMemory: React.FC<TestModuleProps> = ({ onComplete }) => {
-    return <div className="text-center cursor-pointer" onClick={() => onComplete(80, "80", "分")}>点击以此演示完成短期记忆测试</div>
+    const GRID_SIZE = 16; // 4x4
+    const TARGET_COUNT = 5;
+    
+    const [targets, setTargets] = useState<number[]>([]);
+    const [selected, setSelected] = useState<number[]>([]);
+    const [phase, setPhase] = useState<'memorize' | 'recall'>('memorize');
+
+    useEffect(() => {
+        // Generate targets
+        const newTargets = new Set<number>();
+        while(newTargets.size < TARGET_COUNT) {
+            newTargets.add(Math.floor(Math.random() * GRID_SIZE));
+        }
+        setTargets(Array.from(newTargets));
+        
+        // Timer to switch phase
+        const timer = setTimeout(() => {
+            setPhase('recall');
+        }, 2000);
+        
+        return () => clearTimeout(timer);
+    }, []);
+
+    const handleCellClick = (index: number) => {
+        if (phase !== 'recall' || selected.includes(index)) return;
+        
+        const newSelected = [...selected, index];
+        setSelected(newSelected);
+
+        if (newSelected.length === TARGET_COUNT) {
+            // Check results immediately after selecting all
+            const correct = newSelected.filter(i => targets.includes(i)).length;
+            const score = Math.round((correct / TARGET_COUNT) * 100);
+            setTimeout(() => {
+                 onComplete(score, `${correct}/${TARGET_COUNT}`, "正确方块");
+            }, 500);
+        }
+    };
+
+    return (
+        <div className="flex flex-col items-center">
+            <h3 className="mb-4 text-xl">{phase === 'memorize' ? "记忆亮起的方块" : "重复刚才的图案"}</h3>
+            <div className="grid grid-cols-4 gap-3 bg-slate-800 p-4 rounded-xl">
+                {Array.from({ length: GRID_SIZE }).map((_, i) => {
+                    let bgColor = "bg-slate-700";
+                    if (phase === 'memorize' && targets.includes(i)) {
+                        bgColor = "bg-cyan-400 shadow-[0_0_15px_rgba(34,211,238,0.8)]";
+                    } else if (phase === 'recall' && selected.includes(i)) {
+                        bgColor = targets.includes(i) ? "bg-green-500" : "bg-red-500";
+                    }
+
+                    return (
+                        <div 
+                            key={i}
+                            onClick={() => handleCellClick(i)}
+                            className={`w-16 h-16 rounded cursor-pointer transition-all duration-200 ${bgColor} ${phase === 'recall' && !selected.includes(i) ? 'hover:bg-slate-600' : ''}`}
+                        />
+                    );
+                })}
+            </div>
+            {phase === 'recall' && <div className="mt-4 text-slate-400 text-sm">已选: {selected.length} / {TARGET_COUNT}</div>}
+        </div>
+    );
 };
 
 // --- Level 7: FPS ---
 export const FPSAimTest: React.FC<TestModuleProps> = ({ onComplete }) => {
     const [targets, setTargets] = useState<{id: number, x: number, y: number}[]>([]);
     const [hits, setHits] = useState(0);
-    const [total, setTotal] = useState(0);
+    const [clicks, setClicks] = useState(0);
+    const [timeLeft, setTimeLeft] = useState(30);
+    const [gameState, setGameState] = useState<'start' | 'playing' | 'ended'>('start');
     const areaRef = useRef<HTMLDivElement>(null);
 
-    const spawn = useCallback(() => {
-        if (!areaRef.current) return;
-        const x = Math.random() * (areaRef.current.clientWidth - 40);
-        const y = Math.random() * (areaRef.current.clientHeight - 40);
-        setTargets(t => [...t, { id: Date.now(), x, y }]);
-        setTotal(t => t + 1);
-    }, []);
-
+    // Timer Logic
     useEffect(() => {
-        const interval = setInterval(spawn, 600);
-        const end = setTimeout(() => {
-            clearInterval(interval);
-            onComplete(hits, `${hits}/${total}`, "命中数");
-        }, 5000);
-        return () => { clearInterval(interval); clearTimeout(end); }
-    }, [hits, total, spawn, onComplete]);
+        if (gameState !== 'playing') return;
 
-    const shoot = (id: number) => {
+        const timer = setInterval(() => {
+            setTimeLeft(prev => {
+                if (prev <= 1) {
+                    setGameState('ended');
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [gameState]);
+
+    // Spawning Logic
+    useEffect(() => {
+        if (gameState !== 'playing') return;
+
+        const spawn = setInterval(() => {
+            if (!areaRef.current) return;
+            setTargets(prev => {
+                if (prev.length >= 6) return prev; // Limit targets to avoid clutter
+                const w = areaRef.current!.clientWidth - 60; 
+                const h = areaRef.current!.clientHeight - 60;
+                const x = Math.random() * w + 10;
+                const y = Math.random() * h + 10;
+                return [...prev, { id: Date.now() + Math.random(), x, y }];
+            });
+        }, 400); // Faster spawn for higher intensity
+
+        return () => clearInterval(spawn);
+    }, [gameState]);
+
+    // End Game Handler
+    useEffect(() => {
+        if (gameState === 'ended') {
+            const accuracy = clicks > 0 ? Math.round((hits / clicks) * 100) : 0;
+            // Short delay to show the final "0s" state before leaving
+            const timer = setTimeout(() => {
+                 onComplete(hits, `${hits}命中 (${accuracy}%)`, "综合评分");
+            }, 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [gameState, hits, clicks, onComplete]);
+
+    const handleShoot = (id: number, e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent container click event
+        if (gameState !== 'playing') return;
         setHits(h => h + 1);
+        setClicks(c => c + 1);
         setTargets(t => t.filter(x => x.id !== id));
     };
 
+    const handleContainerClick = () => {
+        if (gameState !== 'playing') return;
+        setClicks(c => c + 1); // Count as a miss
+    };
+
     return (
-        <div ref={areaRef} className="w-full h-96 bg-slate-900 relative overflow-hidden cursor-crosshair border border-slate-700">
+        <div 
+            ref={areaRef} 
+            onMouseDown={handleContainerClick}
+            className="w-full h-96 bg-slate-900 relative overflow-hidden cursor-crosshair border border-slate-700 select-none group"
+        >
+            {/* Start Overlay */}
+            {gameState === 'start' && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-30">
+                     <button 
+                        onClick={(e) => { e.stopPropagation(); setGameState('playing'); }}
+                        className="px-8 py-4 bg-cyan-600 hover:bg-cyan-500 text-white font-bold rounded text-xl shadow-[0_0_20px_rgba(8,145,178,0.6)] animate-pulse"
+                     >
+                        START FPS TEST (30s)
+                     </button>
+                </div>
+            )}
+
+            {/* Targets */}
             {targets.map(t => (
                 <div 
                     key={t.id}
-                    onMouseDown={(e) => { e.stopPropagation(); shoot(t.id); }}
-                    className="absolute w-10 h-10 bg-cyan-500 rounded-full border-2 border-white flex items-center justify-center hover:bg-cyan-300 active:bg-red-500"
+                    onMouseDown={(e) => handleShoot(t.id, e)}
+                    className="absolute w-12 h-12 bg-cyan-500 rounded-full border-2 border-white flex items-center justify-center hover:bg-cyan-400 active:scale-95 shadow-[0_0_15px_rgba(6,182,212,0.6)] z-20"
                     style={{ left: t.x, top: t.y }}
                 >
-                    <Crosshair size={16} className="text-slate-900" />
+                    <Crosshair size={20} className="text-slate-900 opacity-50" />
                 </div>
             ))}
-            <div className="absolute top-2 left-2 pointer-events-none text-cyan-500">命中: {hits}</div>
+            
+            {/* HUD */}
+            <div className="absolute top-0 left-0 w-full p-2 z-10 pointer-events-none flex justify-between items-center bg-gradient-to-b from-black/60 to-transparent">
+                <div className="flex gap-6 text-xl font-mono font-bold px-4 w-full justify-between">
+                    <div className={`${timeLeft <= 5 ? 'text-red-500 animate-pulse' : 'text-cyan-400'}`}>
+                        TIME: {timeLeft}s
+                    </div>
+                    <div className="text-white">HITS: {hits}</div>
+                    <div className="text-slate-400">ACC: {clicks > 0 ? Math.round((hits/clicks)*100) : 100}%</div>
+                </div>
+            </div>
         </div>
     );
 };

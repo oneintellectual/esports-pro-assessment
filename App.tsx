@@ -98,8 +98,12 @@ const App: React.FC = () => {
         <AnalysisScreen onFinish={() => setAppState('results')} />
       )}
 
-      {appState === 'results' && (
-        <ResultsScreen scores={scores} onRestart={handleRestart} />
+      {appState === 'results' && currentUser && (
+        <ResultsScreen 
+          scores={scores} 
+          username={currentUser.username} 
+          onRestart={handleRestart} 
+        />
       )}
 
       {appState === 'test' && currentUser && (
