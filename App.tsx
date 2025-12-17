@@ -9,11 +9,14 @@ import {
   FocusTrack, TrackingTest, ReflexLight,
   SequenceMemory, PatternMemory, FPSAimTest 
 } from './components/TestModules';
+import { Play } from 'lucide-react';
 
 type AppState = 'welcome' | 'test' | 'analysis' | 'results';
+type TestPhase = 'intro' | 'active';
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>('welcome');
+  const [testPhase, setTestPhase] = useState<TestPhase>('intro');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentLevelIdx, setCurrentLevelIdx] = useState(0);
   const [currentTestIdx, setCurrentTestIdx] = useState(0);
@@ -23,6 +26,7 @@ const App: React.FC = () => {
     const user = await api.createUser(username);
     setCurrentUser(user);
     setAppState('test');
+    setTestPhase('intro');
     setCurrentLevelIdx(0);
     setCurrentTestIdx(0);
     setScores([]);
@@ -50,10 +54,12 @@ const App: React.FC = () => {
     if (currentTestIdx < currentLevel.tests.length - 1) {
       // Next test in same level
       setCurrentTestIdx(prev => prev + 1);
+      setTestPhase('intro'); // Reset to intro for next test
     } else if (currentLevelIdx < LEVELS.length - 1) {
       // Next level
       setCurrentLevelIdx(prev => prev + 1);
       setCurrentTestIdx(0);
+      setTestPhase('intro'); // Reset to intro for next test
     } else {
       // All done
       setAppState('analysis');
@@ -66,7 +72,7 @@ const App: React.FC = () => {
   };
 
   // --- Render Logic for the active test component ---
-  const renderCurrentTest = () => {
+  const renderCurrentTestModule = () => {
     const currentLevel = LEVELS[currentLevelIdx];
     const currentTest = currentLevel.tests[currentTestIdx];
     const props = { testId: currentTest.id, onComplete: handleTestComplete };
@@ -122,7 +128,7 @@ const App: React.FC = () => {
                {/* Global Progress Bar (Rough estimation) */}
                <div 
                  className="h-full bg-cyan-500 transition-all duration-500"
-                 style={{ width: `${((currentLevelIdx * 2 + currentTestIdx) / 14) * 100}%` }} // Approx 14 tests
+                 style={{ width: `${((currentLevelIdx * 2 + currentTestIdx) / 14) * 100}%` }} 
                />
             </div>
           </div>
@@ -135,8 +141,24 @@ const App: React.FC = () => {
                <h2 className="text-3xl font-display font-bold mb-2 text-white">{LEVELS[currentLevelIdx].tests[currentTestIdx].name}</h2>
                <p className="text-slate-400 mb-8">{LEVELS[currentLevelIdx].tests[currentTestIdx].description}</p>
                
-               <div className="w-full">
-                 {renderCurrentTest()}
+               <div className="w-full flex justify-center">
+                 {testPhase === 'intro' ? (
+                   <div className="text-center animate-in fade-in zoom-in-95 duration-300">
+                      <div className="mb-8 p-6 bg-slate-900/50 rounded-xl border border-slate-600 max-w-lg mx-auto">
+                        <p className="text-lg text-slate-300">准备好开始了吗？</p>
+                        <p className="text-sm text-slate-500 mt-2">请确保您已集中注意力。</p>
+                      </div>
+                      <button 
+                        onClick={() => setTestPhase('active')}
+                        className="group relative inline-flex items-center justify-center px-8 py-4 font-bold text-white transition-all duration-200 bg-cyan-600 font-display rounded-full focus:outline-none hover:bg-cyan-500 hover:shadow-[0_0_20px_rgba(6,182,212,0.6)]"
+                      >
+                        <Play className="mr-2 fill-current" size={20} />
+                        开始测试 / START
+                      </button>
+                   </div>
+                 ) : (
+                   renderCurrentTestModule()
+                 )}
                </div>
             </div>
           </div>

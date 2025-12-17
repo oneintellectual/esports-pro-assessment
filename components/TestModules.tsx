@@ -61,7 +61,11 @@ export const PersonalityTest: React.FC<TestModuleProps> = ({ onComplete }) => {
 export const ReactionSpeedTest: React.FC<TestModuleProps> = ({ onComplete }) => {
   const [status, setStatus] = useState<'waiting' | 'ready' | 'go' | 'clicked'>('waiting');
   const [startTime, setStartTime] = useState(0);
+  const [results, setResults] = useState<number[]>([]);
   const timeoutRef = useRef<number | undefined>(undefined);
+
+  const maxRounds = 3;
+  const currentRound = results.length + 1;
 
   const startTest = () => {
     setStatus('ready');
@@ -80,23 +84,58 @@ export const ReactionSpeedTest: React.FC<TestModuleProps> = ({ onComplete }) => 
     } else if (status === 'go') {
       const endTime = performance.now();
       const ms = Math.floor(endTime - startTime);
+      const newResults = [...results, ms];
+      setResults(newResults);
       setStatus('clicked');
-      onComplete(ms, `${ms}`, 'ms');
+
+      if (newResults.length >= maxRounds) {
+          const avg = Math.floor(newResults.reduce((a, b) => a + b, 0) / maxRounds);
+          setTimeout(() => {
+              onComplete(avg, `${avg}`, 'ms (Avg)');
+          }, 1500);
+      }
     }
+  };
+
+  const nextRound = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setStatus('waiting');
   };
 
   return (
     <div 
       onMouseDown={handleClick}
       className={`w-full h-96 flex flex-col items-center justify-center cursor-pointer rounded-xl select-none transition-colors duration-200
-        ${status === 'waiting' || status === 'clicked' ? 'bg-slate-800' : ''}
+        ${(status === 'waiting' || status === 'clicked') ? 'bg-slate-800' : ''}
         ${status === 'ready' ? 'bg-red-600' : ''}
         ${status === 'go' ? 'bg-green-500' : ''}
       `}
     >
-      {status === 'waiting' && <button onClick={(e) => { e.stopPropagation(); startTest(); }} className="px-8 py-4 bg-cyan-600 rounded-full text-xl font-bold hover:bg-cyan-500">点击开始测试</button>}
-      {status === 'ready' && <h2 className="text-4xl font-bold text-white">等待变绿...</h2>}
-      {status === 'go' && <h2 className="text-6xl font-bold text-white">点击!!!</h2>}
+      {status === 'waiting' && (
+          <div className="flex flex-col items-center gap-4">
+            <h3 className="text-xl text-cyan-400">Round {Math.min(currentRound, maxRounds)} / {maxRounds}</h3>
+            <button onClick={(e) => { e.stopPropagation(); startTest(); }} className="px-8 py-4 bg-cyan-600 rounded-full text-xl font-bold hover:bg-cyan-500 shadow-lg shadow-cyan-500/50">
+                {currentRound === 1 ? "点击开始测试" : "开始下一轮"}
+            </button>
+          </div>
+      )}
+      
+      {status === 'ready' && <h2 className="text-4xl font-bold text-white animate-pulse">等待变绿...</h2>}
+      
+      {status === 'go' && <h2 className="text-6xl font-bold text-white scale-110 transition-transform">点击!!!</h2>}
+      
+      {status === 'clicked' && (
+          <div className="flex flex-col items-center gap-4">
+              <h2 className="text-5xl font-bold text-white mb-2">{results[results.length-1]} ms</h2>
+              {results.length < maxRounds ? (
+                  <button onClick={nextRound} className="px-8 py-3 bg-slate-600 rounded-full text-lg hover:bg-slate-500">
+                      下一轮 &rarr;
+                  </button>
+              ) : (
+                  <div className="text-xl text-green-400">测试完成! 计算平均成绩...</div>
+              )}
+          </div>
+      )}
     </div>
   );
 };
@@ -284,24 +323,101 @@ export const DynamicVision: React.FC<TestModuleProps> = ({ onComplete }) => {
 };
 
 export const FlashMemory: React.FC<TestModuleProps> = ({ onComplete }) => {
+  const [round, setRound] = useState(1);
+  const [correctCount, setCorrectCount] = useState(0);
   const [phase, setPhase] = useState<'show' | 'hide' | 'ask'>('show');
   
-  useEffect(() => {
-    setTimeout(() => setPhase('hide'), 500); // Flash for 500ms
-    setTimeout(() => setPhase('ask'), 1500);
+  // State for current round data
+  const [sequence, setSequence] = useState<string[]>([]); // e.g. ["A", "7", "K"]
+  const [options, setOptions] = useState<string[]>([]); // Options for the user to click
+
+  // Helper to generate a random character (A-Z, 0-9)
+  const getRandomChar = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    return chars.charAt(Math.floor(Math.random() * chars.length));
+  };
+
+  // Helper to start a round
+  const startRound = useCallback(() => {
+    // Generate 3 unique random chars
+    const newSeq = [];
+    while(newSeq.length < 3) {
+       const c = getRandomChar();
+       // avoid duplicates in the same sequence for clarity
+       if (!newSeq.includes(c)) newSeq.push(c);
+    }
+    setSequence(newSeq);
+    setPhase('show');
+
+    // 0.8s flash time
+    setTimeout(() => {
+      setPhase('hide');
+      
+      // Prepare options (The correct middle char + 2 distractors)
+      const target = newSeq[1]; // Middle char
+      const dist1 = getRandomChar();
+      const dist2 = getRandomChar();
+      
+      // Shuffle options
+      const opts = [target, dist1, dist2].sort(() => Math.random() - 0.5);
+      setOptions(opts);
+
+      setTimeout(() => setPhase('ask'), 500); // Short delay before asking
+    }, 800);
   }, []);
 
+  // Init first round
+  useEffect(() => {
+    startRound();
+  }, [startRound]);
+
+  const handleAnswer = (val: string) => {
+    const isCorrect = val === sequence[1];
+    const newCorrectCount = isCorrect ? correctCount + 1 : correctCount;
+    setCorrectCount(newCorrectCount);
+
+    if (round < 3) {
+      setRound(r => r + 1);
+      // Small delay before next round
+      setTimeout(startRound, 500);
+    } else {
+      // Finished
+      const finalScore = Math.round((newCorrectCount / 3) * 100);
+      onComplete(finalScore, `${newCorrectCount}/3`, "正确");
+    }
+  };
+
   return (
-    <div className="flex flex-col items-center">
-      {phase === 'show' && <div className="text-9xl font-bold text-yellow-400">R 7 B</div>}
-      {phase === 'hide' && <div className="text-xl">...回忆中...</div>}
+    <div className="flex flex-col items-center min-h-[300px] justify-center">
+      <h3 className="text-cyan-400 mb-6 font-bold">Round {round} / 3</h3>
+
+      {phase === 'show' && (
+        <div className="flex gap-4">
+          {sequence.map((char, i) => (
+            <div key={i} className="w-20 h-24 bg-slate-800 flex items-center justify-center text-5xl font-bold text-yellow-400 rounded border border-slate-600">
+              {char}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {phase === 'hide' && (
+        <div className="text-xl text-slate-400 animate-pulse">...回忆中...</div>
+      )}
+
       {phase === 'ask' && (
-        <div className="flex flex-col gap-4">
-          <h3 className="text-xl">中间的字符是什么？</h3>
-          <div className="flex gap-4">
-             <button onClick={() => onComplete(100, "正确", "结果")} className="px-6 py-2 bg-slate-700 hover:bg-slate-600 rounded">7</button>
-             <button onClick={() => onComplete(0, "错误", "结果")} className="px-6 py-2 bg-slate-700 hover:bg-slate-600 rounded">9</button>
-             <button onClick={() => onComplete(0, "错误", "结果")} className="px-6 py-2 bg-slate-700 hover:bg-slate-600 rounded">T</button>
+        <div className="flex flex-col gap-6 items-center animate-in fade-in zoom-in-95">
+          <h3 className="text-2xl font-bold">中间的字符是什么？</h3>
+          <div className="flex gap-6">
+             {options.map((opt, i) => (
+                <button 
+                  key={i}
+                  onClick={() => handleAnswer(opt)} 
+                  className="w-20 h-20 bg-slate-700 hover:bg-cyan-600 text-3xl font-bold rounded transition-colors flex items-center justify-center border border-slate-500"
+                >
+                  {opt}
+                </button>
+             ))}
           </div>
         </div>
       )}
