@@ -61,7 +61,7 @@ export const PersonalityTest: React.FC<TestModuleProps> = ({ onComplete }) => {
 export const ReactionSpeedTest: React.FC<TestModuleProps> = ({ onComplete }) => {
   const [status, setStatus] = useState<'waiting' | 'ready' | 'go' | 'clicked'>('waiting');
   const [startTime, setStartTime] = useState(0);
-  const timeoutRef = useRef<number>();
+  const timeoutRef = useRef<number | undefined>(undefined);
 
   const startTest = () => {
     setStatus('ready');
@@ -239,7 +239,7 @@ export const StaticVision: React.FC<TestModuleProps> = ({ onComplete }) => {
 export const DynamicVision: React.FC<TestModuleProps> = ({ onComplete }) => {
   const [pos, setPos] = useState(0);
   const [moving, setMoving] = useState(true);
-  const reqRef = useRef<number>();
+  const reqRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (!moving) return;
@@ -331,24 +331,119 @@ export const FocusTrack: React.FC<TestModuleProps> = ({ onComplete }) => {
 // --- Level 5: Hand Eye ---
 export const TrackingTest: React.FC<TestModuleProps> = ({ onComplete }) => {
   const [score, setScore] = useState(0);
-  const [active, setActive] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(10);
+  const [isHovering, setIsHovering] = useState(false);
+  const targetRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Game Loop for Movement
+  useEffect(() => {
+    let animationFrameId: number;
+    let lastTime = performance.now();
+    
+    // Movement state
+    let tx = 50; // Target X %
+    let ty = 50; // Target Y %
+    let cx = 50; // Current X %
+    let cy = 50; // Current Y %
+    let speed = 0.04; // Speed per ms roughly
+    
+    const pickNewTarget = () => {
+        tx = 10 + Math.random() * 80;
+        ty = 10 + Math.random() * 80;
+    };
+    pickNewTarget();
+
+    const renderLoop = (time: number) => {
+      const delta = time - lastTime;
+      lastTime = time;
+      
+      // Calculate distance to target
+      const dx = tx - cx;
+      const dy = ty - cy;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      
+      // Move
+      const moveStep = speed * delta;
+      
+      if (dist < moveStep) {
+         cx = tx;
+         cy = ty;
+         pickNewTarget();
+      } else {
+         cx += (dx / dist) * moveStep;
+         cy += (dy / dist) * moveStep;
+      }
+      
+      // Update DOM directly
+      if (targetRef.current) {
+         targetRef.current.style.left = `${cx}%`;
+         targetRef.current.style.top = `${cy}%`;
+      }
+      
+      animationFrameId = requestAnimationFrame(renderLoop);
+    };
+    
+    animationFrameId = requestAnimationFrame(renderLoop);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, []);
+
+  // Timer and Scoring
+  const stateRef = useRef({ score: 0, total: 0, isHovering: false });
+  useEffect(() => {
+     stateRef.current.isHovering = isHovering;
+  }, [isHovering]);
 
   useEffect(() => {
-    setActive(true);
-    const interval = setInterval(() => {
-        setScore(s => s + 1);
-    }, 100);
-    const end = setTimeout(() => {
-        clearInterval(interval);
-        onComplete(score, `${Math.min(100, score)}%`, '覆盖率');
-    }, 5000);
-    return () => { clearInterval(interval); clearTimeout(end); }
-  }, [score, onComplete]);
+    const startTime = Date.now();
+    const duration = 10000;
+    
+    const timer = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const remaining = Math.max(0, Math.ceil((duration - elapsed) / 1000));
+        setTimeLeft(remaining);
+
+        stateRef.current.total++;
+        if (stateRef.current.isHovering) {
+            stateRef.current.score++;
+        }
+        
+        // Update UI score every tick
+        setScore(stateRef.current.score);
+
+        if (elapsed >= duration) {
+            clearInterval(timer);
+            const finalPercent = Math.round((stateRef.current.score / stateRef.current.total) * 100);
+            onComplete(finalPercent, `${finalPercent}%`, '覆盖率');
+        }
+    }, 50); // 20 checks per second
+
+    return () => clearInterval(timer);
+  }, [onComplete]);
 
   return (
-    <div className="relative w-full h-80 bg-slate-800 rounded cursor-none overflow-hidden group">
-      <div className="absolute w-16 h-16 bg-red-500 rounded-full animate-bounce duration-[2000ms]" style={{ left: '50%', top: '20%' }} />
-      <div className="absolute top-4 left-4">保持鼠标在红球上 (模拟) - 得分: {score}</div>
+    <div 
+        ref={containerRef}
+        className="relative w-full h-96 bg-slate-900 rounded-xl overflow-hidden border border-slate-700 cursor-crosshair select-none"
+    >
+      {/* Target Ball */}
+      <div 
+        ref={targetRef}
+        onMouseEnter={() => setIsHovering(true)}
+        onMouseLeave={() => setIsHovering(false)}
+        className={`absolute w-16 h-16 rounded-full transform -translate-x-1/2 -translate-y-1/2 flex items-center justify-center transition-colors duration-75
+           ${isHovering ? 'bg-cyan-500 shadow-[0_0_25px_rgba(6,182,212,0.6)]' : 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]'}
+        `}
+        style={{ left: '50%', top: '50%' }} // Initial pos, updated by JS
+      >
+        <Target className={`w-8 h-8 ${isHovering ? 'text-white' : 'text-white/50'}`} />
+      </div>
+
+      {/* HUD */}
+      <div className="absolute top-4 left-4 z-10 flex flex-col gap-1 pointer-events-none">
+         <div className="text-sm text-slate-400">时间: <span className="text-white font-mono text-xl">{timeLeft}s</span></div>
+         <div className="text-sm text-slate-400">追踪: <span className={`${isHovering ? 'text-cyan-400' : 'text-red-400'} font-bold`}>{isHovering ? 'LOCKED' : 'LOST'}</span></div>
+      </div>
     </div>
   );
 };
