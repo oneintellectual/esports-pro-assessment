@@ -11,7 +11,7 @@ export const WelcomeScreen: React.FC<{ onStart: (username: string) => void }> = 
       <div className="cyber-grid absolute inset-0 z-0 opacity-20" />
       
       <div className="z-10 bg-slate-800/80 p-8 rounded-2xl border border-cyan-500/30 backdrop-blur-sm shadow-[0_0_50px_rgba(6,182,212,0.15)] max-w-md w-full text-center">
-        <img src="./logo.png" alt="Logo" className="w-24 h-24 mx-auto mb-6 rounded-full border-2 border-cyan-400" />
+        <img src="/logo.png" alt="Logo" className="w-24 h-24 mx-auto mb-6 rounded-full border-2 border-cyan-400" />
         <h1 className="text-4xl font-display font-bold text-white mb-2">ESPORTS PRO EVAL</h1>
         <p className="text-cyan-400 mb-8 font-mono tracking-wide">职业电竞天赋综合评测系统</p>
         
@@ -90,7 +90,7 @@ export const ResultsScreen: React.FC<{ scores: ScoreRecord[], username: string, 
       <div className="max-w-4xl mx-auto">
         <header className="flex items-center justify-between mb-12 border-b border-slate-700 print:border-black pb-6">
           <div className="flex items-center gap-4">
-             <img src="./logo.png" alt="Logo" className="w-12 h-12 rounded-full print:hidden" />
+             <img src="/logo.png" alt="Logo" className="w-12 h-12 rounded-full print:hidden" />
              <div>
                 <h1 className="text-3xl font-display font-bold text-white print:text-black">评测结果总览</h1>
                 <p className="text-slate-400 text-sm print:text-gray-600">选手: <span className="text-cyan-400 print:text-black font-bold text-lg">{username}</span> | 综合能力详细数据单</p>
